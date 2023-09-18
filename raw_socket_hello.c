@@ -11,6 +11,10 @@
 #include <net/if.h>
 #include <arpa/inet.h>
 
+#ifndef ETH_P_IP
+#define ETH_P_IP 0x0800
+#endif
+
 /* Function to parse MAC address */
 int parseMAC(const char* mac_str, unsigned char* mac) {
     return sscanf(mac_str, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
