@@ -2,8 +2,8 @@ cmake_minimum_required(VERSION 3.0)
 project(vanetza-tests)
 
 # Add the executable
-add_executable(raw_socket_test raw_socket_test.cpp)
-add_executable(raw_socket_hello raw_socket_hello.cpp)
+add_executable(raw_socket_test raw_socket_test.c)
+add_executable(raw_socket_hello raw_socket_hello.c)
 
 # Specify the C standard
 set(CMAKE_C_STANDARD 11)
