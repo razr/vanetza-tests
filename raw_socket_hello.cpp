@@ -1,85 +1,113 @@
 #include <iostream>
 #include <cstring>
-#include <cerrno>
-#include <cstdlib>
-#include <cstdio>
+#include <cstdlib>  // for the exit() function
+#include <unistd.h> // for close() function
 #include <sys/socket.h>
 #include <netpacket/packet.h>
-#include <netinet/if_ether.h>
-#include <net/if.h>
+#include <net/ethernet.h>
 #include <netinet/in.h>
-#include <sys/ioctl.h>
-#include <unistd.h>
+#include <netinet/ip.h>
+#include <net/if.h> // for if_nametoindex
+#include <arpa/inet.h> // for inet_pton
 
-#ifndef ETH_P_ALL
-#define ETH_P_ALL 0x0003
-#endif
+// Function to parse MAC address
+bool parseMAC(const char* mac_str, unsigned char* mac) {
+    return sscanf(mac_str, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
+                  &mac[0], &mac[1], &mac[2], &mac[3], &mac[4], &mac[5]) == 6;
+}
 
 int main(int argc, char* argv[]) {
-    if (argc != 4) {
-        std::cerr << "Usage: " << argv[0] << " <interface_name> <source_mac> <dest_mac>" << std::endl;
+    if (argc != 5) {
+        std::cerr << "Usage: " << argv[0] << " <interface> <source_ip> <dest_ip> <dest_mac>" << std::endl;
         return 1;
     }
 
-    const char* interfaceName = argv[1];
-    const char* sourceMacStr = argv[2];
-    const char* destMacStr = argv[3];
+    // Create a raw socket using AF_PACKET
+    int raw_socket = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_IP)); // Use ETH_P_IP for IPv4
 
-    int rawSocket = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
-
-    if (rawSocket == -1) {
-        if (errno == EAFNOSUPPORT) {
-            std::cerr << "Raw sockets with AF_PACKET are not supported." << std::endl;
-        } else {
-            std::cerr << "Socket creation error: " << strerror(errno) << std::endl;
-        }
+    if (raw_socket == -1) {
+        perror("Failed to create raw socket");
         return 1;
     }
 
-    // Construct the Ethernet frame
-    struct ethhdr etherHeader;
-    struct sockaddr_ll sa;
+    // Specify the network interface to use
+    std::string interface_name = argv[1];
 
-    memset(&etherHeader, 0, sizeof(etherHeader));
+    // Prepare the sockaddr_ll structure
+    struct sockaddr_ll socket_address;
+    memset(&socket_address, 0, sizeof(socket_address));
+    socket_address.sll_family = AF_PACKET;
+    socket_address.sll_protocol = htons(ETH_P_IP); // Use ETH_P_IP for IPv4
+    socket_address.sll_ifindex = if_nametoindex(interface_name.c_str());
 
-    // Parse source and destination MAC addresses using sscanf
-    if (sscanf(sourceMacStr, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
-               &etherHeader.h_source[0], &etherHeader.h_source[1], &etherHeader.h_source[2],
-               &etherHeader.h_source[3], &etherHeader.h_source[4], &etherHeader.h_source[5]) != 6 ||
-        sscanf(destMacStr, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
-               &etherHeader.h_dest[0], &etherHeader.h_dest[1], &etherHeader.h_dest[2],
-               &etherHeader.h_dest[3], &etherHeader.h_dest[4], &etherHeader.h_dest[5]) != 6) {
-        std::cerr << "Invalid MAC address format." << std::endl;
-        close(rawSocket);
+    if (socket_address.sll_ifindex == 0) {
+        perror("Failed to retrieve interface index");
+        close(raw_socket);
         return 1;
     }
 
-    etherHeader.h_proto = htons(ETH_P_IP);
-
-    // Set the destination interface
-    struct ifreq ifr;
-    memset(&ifr, 0, sizeof(ifr));
-    strncpy(ifr.ifr_name, interfaceName, IFNAMSIZ - 1);
-    if (ioctl(rawSocket, SIOCGIFINDEX, &ifr) == -1) {
-        std::cerr << "Failed to get interface index: " << strerror(errno) << std::endl;
-        close(rawSocket);
+    // Destination MAC address
+    unsigned char dest_mac[6];
+    if (!parseMAC(argv[4], dest_mac)) {
+        std::cerr << "Invalid destination MAC address format" << std::endl;
+        close(raw_socket);
         return 1;
     }
 
-    sa.sll_family = AF_PACKET;
-    sa.sll_protocol = htons(ETH_P_ALL);
-    sa.sll_ifindex = ifr.ifr_ifindex;
+    memcpy(socket_address.sll_addr, dest_mac, 6);
+    socket_address.sll_halen = 6;
+
+    // Prepare the IP packet
+    struct ip ip_header;
+    memset(&ip_header, 0, sizeof(ip_header));
+    ip_header.ip_hl = 5; // Header length in 32-bit words
+    ip_header.ip_v = 4;  // IPv4
+    ip_header.ip_tos = 0; // Type of Service (0 for default)
+    ip_header.ip_len = sizeof(ip_header); // Total length of IP packet
+    ip_header.ip_id = 0; // Identification (0 for now)
+    ip_header.ip_off = 0; // Fragment offset (0 for now)
+    ip_header.ip_ttl = 64; // Time to Live
+    ip_header.ip_p = IPPROTO_RAW; // Protocol (RAW)
+    ip_header.ip_sum = 0; // Checksum (0 for now)
+    if (inet_pton(AF_INET, argv[2], &(ip_header.ip_src)) != 1 ||
+        inet_pton(AF_INET, argv[3], &(ip_header.ip_dst)) != 1) {
+        perror("Failed to parse source or destination IP address");
+        close(raw_socket);
+        return 1;
+    }
+
+    // Message to send
+    std::string message = "Hello, World!";
+
+    // Calculate IP checksum
+    ip_header.ip_sum = 0; // Reset checksum field to 0
+    uint32_t sum = 0;
+    uint16_t *ip_header_short = (uint16_t *)&ip_header;
+    for (size_t i = 0; i < sizeof(ip_header) / 2; ++i) {
+        sum += ip_header_short[i];
+    }
+    while (sum >> 16) {
+        sum = (sum & 0xFFFF) + (sum >> 16);
+    }
+    ip_header.ip_sum = ~sum;
+
+    // Prepare the complete packet
+    std::string packet(sizeof(ip_header) + message.size(), 0);
+    memcpy(&packet[0], &ip_header, sizeof(ip_header));
+    memcpy(&packet[sizeof(ip_header)], message.c_str(), message.size());
 
     // Send the packet
-    ssize_t bytesSent = sendto(rawSocket, &etherHeader, sizeof(etherHeader), 0, (struct sockaddr*)&sa, sizeof(sa));
-
-    if (bytesSent == -1) {
-        std::cerr << "Failed to send message: " << strerror(errno) << std::endl;
-    } else {
-        std::cout << "Message sent successfully." << std::endl;
+    if (sendto(raw_socket, packet.c_str(), packet.size(), 0, (struct sockaddr*)&socket_address, sizeof(socket_address)) == -1) {
+        perror("Failed to send message");
+        close(raw_socket);
+        return 1;
     }
 
-    close(rawSocket);
+    std::cout << "Message sent successfully!" << std::endl;
+
+    // Close the socket
+    close(raw_socket);
+
     return 0;
 }
 
