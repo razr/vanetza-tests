@@ -3,6 +3,7 @@ project(vanetza-tests)
 
 # Add the executable
 add_executable(raw_socket_test raw_socket_test.cpp)
+add_executable(raw_socket_hello raw_socket_hello.cpp)
 
 # Specify the C standard
 set(CMAKE_C_STANDARD 11)
