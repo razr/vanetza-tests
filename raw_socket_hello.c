@@ -28,7 +28,7 @@ int main(int argc, char* argv[]) {
     }
 
     /* Create a raw socket using AF_PACKET */
-    int raw_socket = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_IP)); /* Use ETH_P_IP for IPv4 */
+    int raw_socket = socket(AF_PACKET, SOCK_RAW, htons(ETHERTYPE_IP));
 
     if (raw_socket == -1) {
         perror("Failed to create raw socket");
@@ -42,7 +42,7 @@ int main(int argc, char* argv[]) {
     struct sockaddr_ll socket_address;
     memset(&socket_address, 0, sizeof(socket_address));
     socket_address.sll_family = AF_PACKET;
-    socket_address.sll_protocol = htons(ETH_P_IP); /* Use ETH_P_IP for IPv4 */
+    socket_address.sll_protocol = htons(ETHERTYPE_IP);
     socket_address.sll_ifindex = if_nametoindex(interface_name);
 
     if (socket_address.sll_ifindex == 0) {
