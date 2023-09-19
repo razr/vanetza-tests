@@ -13,10 +13,16 @@ int main(int argc, char* argv[]) {
 
     const char* interfaceName = argv[1]; // Get the interface name from the command line argument
 
-    boost::asio::io_service io_service;
-    boost::asio::generic::raw_protocol raw_protocol(AF_PACKET, SOCK_RAW);
-    boost::asio::generic::raw_protocol::socket raw_socket(io_service, raw_protocol);
-    boost::asio::generic::raw_protocol::endpoint endpoint = raw_socket.local_endpoint();
+    try {
+        boost::asio::io_service io_service;
+        boost::asio::generic::raw_protocol raw_protocol(AF_PACKET, SOCK_RAW);
+        boost::asio::generic::raw_protocol::socket raw_socket(io_service, raw_protocol);
+        boost::asio::generic::raw_protocol::endpoint endpoint = raw_socket.local_endpoint();
+    } catch (const boost::system::system_error& e) {
+        // Handle the exception gracefully
+        std::cerr << "Boost System Error: " << e.what() << std::endl;
+        return 1;
+    }
 
     int local_socket = ::socket(AF_LOCAL, SOCK_DGRAM, 0);
 
