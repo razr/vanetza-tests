@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <errno.h>
 #include <sys/ioctl.h>
 #include <net/if.h>
 #include <netpacket/packet.h>
@@ -50,8 +51,11 @@ int main(int argc, char* argv[]) {
 
     socklen_t addr_len = sizeof(struct sockaddr_ll);
     if (getsockname(raw_socket, (struct sockaddr*)&socket_address, &addr_len) == -1) {
-        perror("Failed to get socket name");
-        close(raw_socket);
+        if (errno == EOPNOTSUPP) {
+            perror("getsockname is not supported for this socket type");
+        } else {
+            perror("getsockname");
+        }
         return 1;
     }
 
