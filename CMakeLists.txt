@@ -7,6 +7,7 @@ find_package(Boost REQUIRED COMPONENTS system)
 add_executable(raw_socket_test raw_socket_test.c)
 add_executable(raw_socket_hello raw_socket_hello.c)
 add_executable(local_endpoint_test local_endpoint_test.cpp)
+add_executable(local_endpoint_c_test local_endpoint_c_test.c)
 
 # Specify the C and C++ standards
 set(CMAKE_C_STANDARD 11)
