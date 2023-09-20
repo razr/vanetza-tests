@@ -1,4 +1,5 @@
 #include <iostream>
+#include <iomanip>
 #include <boost/asio.hpp>
 #include <boost/asio/generic/raw_protocol.hpp>
 #include <netinet/in.h>
@@ -41,6 +42,24 @@ int main(int argc, char* argv[]) {
         raw_socket.bind(endpoint);
 
         boost::asio::generic::raw_protocol::endpoint local_endpoint = raw_socket.local_endpoint();
+        // Access the raw data
+        const struct sockaddr_ll* ll_addr = reinterpret_cast<const struct sockaddr_ll*>(local_endpoint.data());
+
+        // Print the fields of struct sockaddr_ll
+        std::cout << "sll_family: " << ll_addr->sll_family << std::endl;
+        std::cout << "sll_protocol: " << ll_addr->sll_protocol << std::endl;
+        std::cout << "sll_ifindex: " << ll_addr->sll_ifindex << std::endl;
+        std::cout << "sll_hatype: " << ll_addr->sll_hatype << std::endl;
+        std::cout << "sll_pkttype: " << static_cast<int>(ll_addr->sll_pkttype) << std::endl;
+        std::cout << "sll_halen: " << static_cast<int>(ll_addr->sll_halen) << std::endl;
+    
+        // Print sll_addr as a series of hexadecimal values
+        std::cout << "sll_addr: ";
+        for (int i = 0; i < ll_addr->sll_halen; ++i) {
+            std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(ll_addr->sll_addr[i]);
+            if (i < ll_addr->sll_halen - 1) std::cout << ":";
+        }
+        std::cout << std::dec << std::endl;
 
     } catch (const boost::system::system_error& e) {
         std::cerr << "Boost System Error: " << e.what() << std::endl;
